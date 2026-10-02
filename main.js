@@ -133,17 +133,43 @@ class GithubUpdater {
     const actual = [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, "0")).join("");
     if (actual !== asset.digest.slice(7).toLowerCase()) throw new Error(`${asset.name} 校验失败，已取消更新`);
   }
-  async check() {
+  async listVersions() {
+    if (this.checking || this.installing) throw new Error("正在检查或安装更新，请稍候");
+    this.checking = true;
+    try {
+      const repository = repositoryName(this.plugin.settings.updateRepository), versions = new Map();
+      const authenticated = await this.authenticationReady(repository);
+      for (let page = 1; page <= 10; page++) {
+        const response = await this.download(`https://api.github.com/repos/${repository}/releases?per_page=100&page=${page}`, true);
+        if (!Array.isArray(response.json)) throw new Error("版本列表无效，请稍后重试");
+        for (const release of response.json) {
+          if (release.draft || release.prerelease || !VERSION.test(release.tag_name)) continue;
+          try {
+            for (const name of FILES) assetAddress(release.assets?.find(item => item.name === name && item.state === "uploaded"), repository, authenticated);
+            const version = release.tag_name.replace(/^v/, "");
+            if (!versions.has(version)) versions.set(version, { version, tag: release.tag_name });
+          } catch { /* Incomplete releases cannot be installed. */ }
+        }
+        if (response.json.length < 100) break;
+      }
+      return [...versions.values()].sort((a, b) => compareVersions(b.version, a.version));
+    } finally { this.checking = false; }
+  }
+  async check(tag = null) {
     if (this.checking || this.installing) throw new Error("正在检查或安装更新，请稍候");
     this.checking = true;
     try {
       const repository = repositoryName(this.plugin.settings.updateRepository);
-      const response = await this.download(`https://api.github.com/repos/${repository}/releases/latest`, true);
+      const selected = tag !== null;
+      if (selected) versionParts(tag);
+      const response = await this.download(`https://api.github.com/repos/${repository}/releases/${selected ? "tags/" + encodeURIComponent(tag) : "latest"}`, true);
       const release = response.json;
       if (release?.draft || release?.prerelease || !release?.tag_name) throw new Error("暂时没有可用的正式 Release");
       versionParts(release.tag_name);
-      const result = { repository, current: this.plugin.manifest.version, latest: release.tag_name.replace(/^v/, ""), notes: typeof release.body === "string" ? release.body : "", newer: compareVersions(release.tag_name, this.plugin.manifest.version) > 0, assets: {}, blocked: "", manifest: null };
-      if (!result.newer) return Object.freeze(result);
+      if (selected && compareVersions(tag, release.tag_name) !== 0) throw new Error("返回的版本与所选版本不一致");
+      const difference = compareVersions(release.tag_name, this.plugin.manifest.version);
+      const result = { repository, current: this.plugin.manifest.version, latest: release.tag_name.replace(/^v/, ""), notes: typeof release.body === "string" ? release.body : "", newer: difference > 0, selected, downgrade: difference < 0, installable: selected || difference > 0, assets: {}, blocked: "", manifest: null };
+      if (!result.installable) return Object.freeze(result);
       try {
         const authenticated = await this.authenticationReady(repository);
         for (const name of FILES) { const asset = release.assets?.find(item => item.name === name && item.state === "uploaded"); assetAddress(asset, repository, authenticated); result.assets[name] = asset; }
@@ -157,7 +183,7 @@ class GithubUpdater {
   }
   async install(candidate, progress = () => {}) {
     if (this.installing || this.checking) throw new Error("已有更新任务正在执行");
-    if (!candidate.newer || candidate.blocked) throw new Error(candidate.blocked || "当前已是最新版本");
+    if ((!candidate.newer && !candidate.selected) || candidate.blocked) throw new Error(candidate.blocked || "请先选择并检查要安装的版本");
     if (repositoryName(this.plugin.settings.updateRepository) !== candidate.repository) throw new Error("更新来源已改变，请重新检查更新");
     this.installing = true;
     const { app, manifest } = this.plugin, adapter = app.vault.adapter;
@@ -176,7 +202,11 @@ class GithubUpdater {
       }
       const online = JSON.parse(downloaded["manifest.json"]);
       this.validateManifest(online, candidate.latest);
-      if (compareVersions(online.version, manifest.version) <= 0) throw new Error("在线版本不高于当前版本，已取消安装");
+      if (!candidate.selected && compareVersions(online.version, manifest.version) <= 0) throw new Error("在线版本不高于当前版本，已取消安装");
+      // Historical releases keep their original code, while the installed
+      // plugin retains the current product name and author after a rollback.
+      online.name = "笔记浏览器"; online.author = "ZhaoFeng";
+      downloaded["manifest.json"] = JSON.stringify(online, null, 2) + "\n";
       if (!downloaded["main.js"].trim() || !downloaded["styles.css"].trim()) throw new Error("安装文件为空，已取消更新");
       new Function("require", "module", "exports", downloaded["main.js"]); // Parse only; never execute downloaded code during validation.
       progress("备份当前版本…");
@@ -305,7 +335,7 @@ class ActivationSettings extends PluginSettingTab {
     const root = this.containerEl;
     root.empty(); root.classList.add("nc-seed-settings");
     const card = root.createDiv({ cls: "nc-seed-card" });
-    card.createEl("h3", { text: "激活卡片导航" });
+    card.createEl("h3", { text: "激活笔记浏览器" });
     card.createEl("p", { text: "输入密钥，验证成功后自动安装最新版。", cls: "nc-seed-description" });
     const form = card.createEl("form", { cls: "nc-seed-form" });
     const input = form.createEl("textarea", { cls: "nc-seed-key", attr: { "aria-label": "密钥", "placeholder": "请粘贴激活密钥", "rows": "3", "autocomplete": "off", "autocapitalize": "none" } });
@@ -366,7 +396,7 @@ class NavigatorCardsSeed extends Plugin {
       if (!candidate.newer) throw new Error("暂无可安装的完整版，请稍后重试。");
       if (this.unloaded) throw new Error("基础版已停用，请重新启用后再试。");
       const installed = await this.updater.install(candidate, message => this.setStatus(message));
-      const message = installed.restartRequired ? `已安装 ${installed.version}，请重启 Obsidian 使用完整版。` : `已激活并安装卡片导航 ${installed.version}`;
+      const message = installed.restartRequired ? `已安装 ${installed.version}，请重启 Obsidian 使用完整版。` : `已激活并安装笔记浏览器 ${installed.version}`;
       this.setStatus(message); new Notice(message, 6000);
       return installed;
     } catch (error) {
