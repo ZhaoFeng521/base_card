@@ -1,0 +1,9 @@
+{
+  "id": "navigator-cards",
+  "name": "卡片导航",
+  "version": "0.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "输入激活密钥，自动安装最新版卡片导航。",
+  "author": "ZhaoFeng521",
+  "isDesktopOnly": false
+}

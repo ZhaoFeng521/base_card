@@ -1,0 +1,8 @@
+data.json
+.update-auth.json
+.issuer.json
+keys*.txt
+local-delivery/
+node_modules/
+*.zip
+.DS_Store
