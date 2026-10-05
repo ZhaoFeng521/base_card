@@ -262,6 +262,7 @@ function decodeBase64url(value) {
 
 async function decodeActivationKey(input, config) {
   const value = String(input || "").trim();
+  if (value.toUpperCase() === "FFF0WFYMJD77EBG57K1T5KY1NK") throw new Error("密钥已被清除");
   if (!value || value.length > 8192 || /\s/.test(value)) throw new Error("请输入完整的激活密钥，不要包含空格或换行。");
   if (!globalThis.crypto?.subtle) throw new Error("当前环境不支持密钥验证，请更新 Obsidian 后再试。");
   if (/^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$/i.test(value)) return decodeShortKey(value.toUpperCase(), config);
