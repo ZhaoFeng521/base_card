@@ -337,6 +337,9 @@ class ActivationSettings extends PluginSettingTab {
     const card = root.createDiv({ cls: "nc-seed-card" });
     card.createEl("h3", { text: "激活笔记浏览器" });
     card.createEl("p", { text: "输入密钥，验证成功后自动安装最新版。", cls: "nc-seed-description" });
+    const purchase = card.createEl("p", { cls: "nc-seed-purchase" });
+    purchase.createSpan({ text: "还没有激活密钥？" });
+    purchase.createEl("a", { text: "前往购买", attr: { "href": "https://wzyp.cn/item/7u3rnq", "target": "_blank", "rel": "noopener noreferrer" } });
     const form = card.createEl("form", { cls: "nc-seed-form" });
     const input = form.createEl("textarea", { cls: "nc-seed-key", attr: { "aria-label": "密钥", "placeholder": "请粘贴激活密钥", "rows": "3", "autocomplete": "off", "autocapitalize": "none" } });
     input.spellcheck = false;

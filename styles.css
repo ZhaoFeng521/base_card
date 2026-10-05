@@ -2,6 +2,8 @@
 .nc-seed-card { padding: 20px; border: 1px solid var(--background-modifier-border); border-radius: 16px; background: var(--background-secondary); }
 .nc-seed-card h3 { margin: 0 0 8px; font-size: 18px; }
 .nc-seed-description { margin: 0 0 16px; color: var(--text-muted); line-height: 1.6; overflow-wrap: anywhere; }
+.nc-seed-purchase { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 16px; color: var(--text-muted); line-height: 1.6; }
+.nc-seed-purchase a { color: var(--text-accent); text-decoration: underline; text-underline-offset: 3px; }
 .nc-seed-form { display: flex; flex-direction: column; gap: 12px; }
 .nc-seed-key { width: 100% !important; min-width: 0; min-height: 96px; padding: 12px !important; border: 1px solid var(--background-modifier-border); border-radius: 10px !important; background: var(--background-primary); color: var(--text-normal); font-size: 16px; box-sizing: border-box; resize: vertical; overflow-wrap: anywhere; word-break: break-all; }
 .nc-seed-submit { width: 100%; min-height: 42px; height: auto; border-radius: 10px !important; padding: 10px 14px !important; white-space: normal; }
